@@ -119,6 +119,30 @@ export default async function handler(req, res) {
         console.error("Failed to send error message:", error.message);
       }
     }
+  } if (message?.text === "/address@harulaid_bot") {
+    try {
+      await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        chat_id: GROUP_CHAT_ID,
+        text: 'K Mall Veng Sreng Blvd, Phnom Penh',
+        parse_mode: "Markdown",
+      });
+    } catch (err) {
+      console.error("=== Telegram or AppSheet API Error ===");
+      console.error("Error details:", err.response?.data || err.message);
+
+      // Send error message to user
+      try {
+        await axios.post(
+          `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
+          {
+            chat_id: message.chat.id,
+            text: "❌ Error sending data. Please try again later.",
+          }
+        );
+      } catch (error) {
+        console.error("Failed to send error message:", error.message);
+      }
+    }
   } else {
     console.log("Command did not match");
   }
