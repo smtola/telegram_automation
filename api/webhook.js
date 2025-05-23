@@ -1,7 +1,7 @@
 import express from "express";
 import axios from "axios";
 
-const BOT_TOKEN = "7811188244:AAHKAHIgY56uQwSyTMISvr-9J8L3O-mQJrc";
+const BOT_TOKEN = "7314683639:AAE7D556JD3AJL8sd9bmXsiVYZt7wz1ht3M";
 const GROUP_CHAT_ID = "-1002355773121";
 
 // Replace these with your AppSheet info
