@@ -1,12 +1,15 @@
 import express from "express";
 import axios from "axios";
 
+const app = express();
+app.use(express.json());
+
 const BOT_TOKEN = "7314683639:AAE7D556JD3AJL8sd9bmXsiVYZt7wz1ht3M";
 const GROUP_CHAT_ID = "-1002355773121";
 
 // Replace these with your AppSheet info
 const APPSHEET_API_URL =
-  "https://api.appsheet.com/api/v2/apps/0a8af6f9-8b8a-4fc8-a4f4-d125d4852bfd/tables/Invoice/Action";
+  "https://api.appsheet.com/api/v2/apps/0a8af6f9-8b8a-4fc8-a4f4-d125d4852bfd/tables/Point/Action";
 const APPSHEET_API_KEY = "V2-QKgXJ-kpOoL-uI7Ah-YEr3o-Je72R-QU07D-darL4-vnudE";
 
 // Function to fetch data from AppSheet
@@ -35,19 +38,19 @@ async function fetchAppSheetData() {
 
 // Format AppSheet record into text message
 function formatSelectedFieldsMarkdown(record) {
-  const fields = [
-    "Row ID",
-    "InvoiceId",
-    "CustomerName",
-    "DeliveryMan",
-    "Delivery Fee",
-    "Date",
-    "Due Date",
-    "Phone Number 1",
-    "Address",
-  ];
+  const fields = ["UUID", "Tel_ID", "Username", "Point"];
 
-  return fields.map((field) => `*${field}:* ${record[field] || ""}`).join("\n");
+  // Escape special characters and ensure proper Markdown formatting
+  return fields
+    .map((field) => {
+      const value = record[field] || "";
+      // Escape special characters that could break Markdown
+      const escapedValue = value
+        .toString()
+        .replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&");
+      return `*${field}:* ${escapedValue}`;
+    })
+    .join("\n");
 }
 
 export default async function handler(req, res) {
@@ -60,48 +63,49 @@ export default async function handler(req, res) {
   console.log("Body:", JSON.stringify(req.body, null, 2));
 
   const message = req.body.message;
-  console.log("Message text:", message?.text);
-  console.log("Chat ID:", message?.chat?.id);
+  // console.log("Message text:", message?.text);
+  // console.log("Chat ID:", message?.chat?.id);
 
   if (
-    message?.text === "/senddata" ||
-    message?.text === "/senddata@harulaid_bot"
+    message?.text === "/mypoint" ||
+    message?.text === "/mypoint@harulaid_bot"
   ) {
     console.log("Command matched, sending messages...");
 
     try {
       // Fetch data from AppSheet
       const appSheetData = await fetchAppSheetData();
-      console.log(appSheetData);
       if (!appSheetData || appSheetData.length === 0) {
         throw new Error("No data found in AppSheet");
       }
 
-      const record = appSheetData[0];
-      const formattedText = formatSelectedFieldsMarkdown(record);
-
-      // Send message to Telegram group
-      const groupResponse = await axios.post(
-        `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
-        {
-          chat_id: GROUP_CHAT_ID,
-          text: formattedText,
-          parse_mode: "Markdown",
-        }
+      // Find the matching record
+      const matchingRecord = appSheetData.find(
+        (element) => element.Tel_ID == message?.from?.id
       );
 
-      console.log("Group message response:", groupResponse.data);
-
-      // Send confirmation message to the user who sent the command
-      const userResponse = await axios.post(
-        `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
-        {
-          chat_id: message.chat.id,
-          text: "✅ Automation data has been sent to the group!",
-        }
-      );
-
-      console.log("User confirmation response:", userResponse.data);
+      if (matchingRecord) {
+        const formattedText = formatSelectedFieldsMarkdown(matchingRecord);
+        // Send message to Telegram group
+        await axios.post(
+          `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
+          {
+            chat_id: GROUP_CHAT_ID,
+            text: formattedText,
+            parse_mode: "Markdown",
+          }
+        );
+      } else {
+        // Send message only if no matching record is found
+        await axios.post(
+          `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
+          {
+            chat_id: GROUP_CHAT_ID,
+            text: "No found data record!",
+            parse_mode: "Markdown",
+          }
+        );
+      }
     } catch (err) {
       console.error("=== Telegram or AppSheet API Error ===");
       console.error("Error details:", err.response?.data || err.message);
@@ -119,11 +123,12 @@ export default async function handler(req, res) {
         console.error("Failed to send error message:", error.message);
       }
     }
-  } if (message?.text === "/address@harulaid_bot") {
+  }
+  if (message?.text === "/address@harulaid_bot") {
     try {
       await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         chat_id: GROUP_CHAT_ID,
-        text: 'K Mall Veng Sreng Blvd, Phnom Penh',
+        text: "K Mall Veng Sreng Blvd, Phnom Penh",
         parse_mode: "Markdown",
       });
     } catch (err) {
@@ -149,3 +154,12 @@ export default async function handler(req, res) {
 
   res.status(200).json({ message: "OK" });
 }
+
+// Use the handler as middleware
+app.post("/webhook", handler);
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
